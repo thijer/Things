@@ -1,5 +1,7 @@
 #ifndef THINGGATEWAY_HPP
 #define THINGGATEWAY_HPP
+#include "config.h"
+
 #include <functional>
 #include "Client.h"
 #include "ArduinoJson.h"
@@ -38,6 +40,11 @@ class ThingGateway
         /// @brief Indicates if the gateway is currently connected to thingsboard.
         /// @return `true` if connected, `false` otherwise.
         bool is_connected() { return connected; }
+
+        /// @brief Add a function that generates the time as a timestamp when called.
+        /// @param timefunction The function that generates the timestamp. Should take no input 
+        /// arguments and return a single `time_t` object.
+        void add_timesource(std::function<time_t()> timefunction); 
     
     protected:
     
@@ -85,6 +92,9 @@ class ThingGateway
         
         // The name of this device.
         const char* devicename;
+
+        // Pointer to a function that provides a timestamp.
+        std::function<time_t()> timesource;
 };
 
 template<size_t SIZE>
@@ -117,6 +127,9 @@ void ThingGateway<SIZE>::loop()
     {
         connected = mqtt.connect(devicename, accesstoken, "");
     }
+    time_t currenttime = 0;
+    if(timesource) currenttime = timesource();
+    
     for(ThingDevice* device : devices)
     {
         // Check if device should be connected to Thingsboard.
@@ -139,15 +152,20 @@ void ThingGateway<SIZE>::loop()
             {
                 PRINT("[ThingGateway] ", device->name, ": attribute updates");
                 // [TODO] Prepare doc if necessary.
+                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
                 attribute_doc[device->name] = device->attribute_doc;
                 device->attribute_doc.clear();
             }
             // Check for telemetry updates.
-            if(!device->telemetry_doc.isNull())
+            // The gateway can only send telemetry if a timestamp can be assigned.
+            if(!device->telemetry_doc.isNull() && timesource)
             {
                 PRINT("[ThingGateway] ", device->name, ": telemetry updates");
                 // [TODO] Prepare doc if necessary.
-                telemetry_doc[device->name] = device->telemetry_doc;
+                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
+                JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
+                obj["ts"] = currenttime;
+                obj["values"] = device->telemetry_doc;
                 device->telemetry_doc.clear();
             }
         }
@@ -188,6 +206,12 @@ void ThingGateway<SIZE>::add_devices(ThingDevice* const (&device)[SIZE])
     {
         devices[i] = device[i];
     }
+}
+
+template<size_t SIZE>
+void ThingGateway<SIZE>::add_timesource(std::function<time_t()> timefunction)
+{
+    timesource = timefunction;
 }
 
 template<size_t SIZE>
