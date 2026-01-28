@@ -61,6 +61,9 @@ class ThingGateway
         // Publish a finished JSON structure to the given MQTT topic.
         bool publish(const char* topic, JsonDocument& doc);
 
+        // Pass the received shared attributes to the correct ThingDevice.
+        void process_attribute(JsonDocument& doc);
+
         // MQTT Topics
         // PUB: Connect a device to thingsboard.
         const char* topic_connect = "v1/gateway/connect";
@@ -74,7 +77,9 @@ class ThingGateway
         // PUB: Upload telemetry to thingsboard.
         const char* topic_telemetry = "v1/gateway/telemetry";
         
-        // THe set of Thingsboard devices belonging to this gateway.
+        const uint8_t topic_prefix_length = sizeof("v1/gateway/") - 1;
+
+        // The set of Thingsboard devices belonging to this gateway.
         ThingDevice* devices[SIZE];
 
         // The JSON structures that hold the data before sending it to thingsboard. 
@@ -86,6 +91,9 @@ class ThingGateway
 
         // Connection status
         bool connected = false;
+
+        // Indicates if the gateway has subscribed to the relevant topics.
+        bool subscribed = false;
 
         // Accesstoken to authenticate this gateway to Thingsboard.
         const char* accesstoken;
@@ -122,14 +130,26 @@ void ThingGateway<SIZE>::begin()
 template<size_t SIZE>
 void ThingGateway<SIZE>::loop()
 {
+    mqtt.loop();
     // reconnect if not connected.
     if(!connected)
     {
         connected = mqtt.connect(devicename, accesstoken, "");
     }
+    else
+    {
+        // Get current time.
     time_t currenttime = 0;
     if(timesource) currenttime = timesource();
     
+        // Subscribe to topics.
+        if(!subscribed)
+        {
+            subscribed = mqtt.subscribe(topic_attributes);;
+            PRINT("[ThingGateway]: subscribing ", subscribed ? "success." : "failed.");
+        }
+
+        // Process attached ThingDevices.
     for(ThingDevice* device : devices)
     {
         // Check if device should be connected to Thingsboard.
@@ -217,7 +237,16 @@ void ThingGateway<SIZE>::add_timesource(std::function<time_t()> timefunction)
 template<size_t SIZE>
 void ThingGateway<SIZE>::callback(char* topic, uint8_t* payload, unsigned int length)
 {
-
+    PRINT("[ThingGateway] received message on ", topic, ":");
+    PRINT(payload, length);
+    // Attribute updates
+    if(!strncmp(topic + topic_prefix_length, "attributes", 10))
+    {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, payload, length);
+        if(err) PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str());
+        else process_attribute(doc);
+    }
 }
 
 template<size_t SIZE>
@@ -250,6 +279,25 @@ bool ThingGateway<SIZE>::publish(const char* topic, JsonDocument& doc)
     mqtt.beginPublish(topic, length, false);
     size_t written = serializeJson(doc, mqtt);
     return mqtt.endPublish();
+}
+
+template<size_t SIZE>
+void ThingGateway<SIZE>::process_attribute(JsonDocument& doc)
+{
+    const char* devicename = doc["device"];
+    if(devicename == nullptr || !doc["data"].is<JsonObject>())
+    {
+        PRINT("[ThingGateway] JSON format is wrong.");
+        return;
+    }
+    for(ThingDevice* device : devices)
+    {
+        if(!strcmp(devicename, device->name))
+        {
+            JsonObject obj = doc["data"];
+            device->process_attributes(obj);
+        }
+    }
 }
 
 
