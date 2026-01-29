@@ -1,1 +1,3 @@
 .vscode
+.build
+examples/gateway/secrets.h
