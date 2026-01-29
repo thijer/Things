@@ -39,7 +39,7 @@ class ThingGateway
 
         /// @brief Indicates if the gateway is currently connected to thingsboard.
         /// @return `true` if connected, `false` otherwise.
-        bool is_connected() { return connected; }
+        bool connected() { return mqtt.connected(); }
 
         /// @brief Add a function that generates the time as a timestamp when called.
         /// @param timefunction The function that generates the timestamp. Should take no input 
@@ -89,9 +89,6 @@ class ThingGateway
         // The MQTT client.
         PubSubClient mqtt;
 
-        // Connection status
-        bool connected = false;
-
         // Indicates if the gateway has subscribed to the relevant topics.
         bool subscribed = false;
 
@@ -124,7 +121,7 @@ ThingGateway<SIZE>::~ThingGateway()
 template<size_t SIZE>
 void ThingGateway<SIZE>::begin()
 {
-    connected = mqtt.connect(devicename, accesstoken, "");
+    mqtt.connect(devicename, accesstoken, "");
 }
 
 template<size_t SIZE>
@@ -132,16 +129,16 @@ void ThingGateway<SIZE>::loop()
 {
     mqtt.loop();
     // reconnect if not connected.
-    if(!connected)
+    if(!mqtt.connected())
     {
-        connected = mqtt.connect(devicename, accesstoken, "");
+        mqtt.connect(devicename, accesstoken, "");
     }
     else
     {
         // Get current time.
-    time_t currenttime = 0;
-    if(timesource) currenttime = timesource();
-    
+        time_t currenttime = 0;
+        if(timesource) currenttime = timesource();
+
         // Subscribe to topics.
         if(!subscribed)
         {
@@ -150,71 +147,74 @@ void ThingGateway<SIZE>::loop()
         }
 
         // Process attached ThingDevices.
-    for(ThingDevice* device : devices)
-    {
-        // Check if device should be connected to Thingsboard.
-        if(device->enabled && !device->connected)
+        for(ThingDevice* device : devices)
         {
-            PRINT("[ThingGateway]", device->name, ": connecting.");
-            connect_device(device);
-        }
-        // Check if device should be disconnected from Thingsboard.
-        else if(!device->enabled && device->connected)
-        {
-            PRINT("[ThingGateway]", device->name, ": disconnecting.");
-            disconnect_device(device);
+            // Check if device should be connected to Thingsboard.
+            if(device->enabled && !device->connected)
+            {
+                PRINT("[ThingGateway]", device->name, ": connecting.");
+                connect_device(device);
+            }
+            // Check if device should be disconnected from Thingsboard.
+            else if(!device->enabled && device->connected)
+            {
+                PRINT("[ThingGateway]", device->name, ": disconnecting.");
+                disconnect_device(device);
+            }
+            
+            else
+            {
+                // Check for attribute updates.
+                if(!device->attribute_doc.isNull())
+                {
+                    PRINT("[ThingGateway] ", device->name, ": attribute updates");
+                    // [TODO] Prepare doc if necessary.
+                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
+                    attribute_doc[device->name] = device->attribute_doc;
+                    device->attribute_doc.clear();
+                }
+                // Check for telemetry updates.
+                // The gateway can only send telemetry if a timestamp can be assigned.
+                if(!device->telemetry_doc.isNull() && timesource)
+                {
+                    PRINT("[ThingGateway] ", device->name, ": telemetry updates");
+                    // [TODO] Prepare doc if necessary.
+                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
+                    JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
+                    obj["ts"] = currenttime;
+                    obj["values"] = device->telemetry_doc;
+                    device->telemetry_doc.clear();
+                }
+            }
         }
         
-        else
+        // Send attributes and/or telemetry to Thingsboard.
+        if(!attribute_doc.isNull())
         {
-            // Check for attribute updates.
-            if(!device->attribute_doc.isNull())
+            PRINT("[ThingGateway]: publishing attributes");
+            if(publish(topic_attributes, attribute_doc))
             {
-                PRINT("[ThingGateway] ", device->name, ": attribute updates");
-                // [TODO] Prepare doc if necessary.
-                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
-                attribute_doc[device->name] = device->attribute_doc;
-                device->attribute_doc.clear();
+                // Publishing success
+                attribute_doc.clear();
             }
-            // Check for telemetry updates.
-            // The gateway can only send telemetry if a timestamp can be assigned.
-            if(!device->telemetry_doc.isNull() && timesource)
+            else
             {
-                PRINT("[ThingGateway] ", device->name, ": telemetry updates");
-                // [TODO] Prepare doc if necessary.
-                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
-                JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
-                obj["ts"] = currenttime;
-                obj["values"] = device->telemetry_doc;
-                device->telemetry_doc.clear();
+                PRINT("[ThingGateway] ERROR: publishing failed");
             }
         }
-    }
-    // Send attributes and/or telemetry to Thingsboard.
-    if(!attribute_doc.isNull())
-    {
-        PRINT("[ThingGateway]: publishing attributes");
-        if(publish(topic_attributes, attribute_doc))
+
+        if(!telemetry_doc.isNull())
         {
-            // Publishing success
-            attribute_doc.clear();
-        }
-        else
-        {
-            PRINT("[ThingGateway] ERROR: publishing failed");
-        }
-    }
-    if(!telemetry_doc.isNull())
-    {
-        PRINT("[ThingGateway]: publishing telemetry");
-        if(publish(topic_telemetry, telemetry_doc))
-        {
-            // Publishing success
-            telemetry_doc.clear();
-        }
-        else
-        {
-            PRINT("[ThingGateway] ERROR: publishing failed");
+            PRINT("[ThingGateway]: publishing telemetry");
+            if(publish(topic_telemetry, telemetry_doc))
+            {
+                // Publishing success
+                telemetry_doc.clear();
+            }
+            else
+            {
+                PRINT("[ThingGateway] ERROR: publishing failed");
+            }
         }
     }
 }
