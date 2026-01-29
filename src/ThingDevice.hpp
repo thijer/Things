@@ -1,6 +1,6 @@
 #ifndef THINGDEVICE_H
 #define THINGDEVICE_H
-#include "ArduinoJson.h"
+#include "ArduinoJson.h" // ArduinoJson needs to be included before property.hpp to ensure property.hpp compiles ArduinoJson supporting functions.
 #include "property.hpp"
 #include "propertystore.hpp"
 #include "ThingGateway.hpp"
@@ -85,11 +85,11 @@ ThingDevice::ThingDevice(const char* name, const char* type):
 
 void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
 {
-    if(doc.isNull())
-    {
-        // Do doc initialization if necessary
-    }
-    p->save_to_doc(doc);
+    JsonObject obj;
+    if(doc.isNull())    obj = doc.to<JsonObject>();
+    else                obj = doc.as<JsonObject>();
+
+    p->save_to_json(obj);
     p->saved();
 }
 
