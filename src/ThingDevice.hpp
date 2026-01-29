@@ -1,6 +1,6 @@
 #ifndef THINGDEVICE_H
 #define THINGDEVICE_H
-#include "ArduinoJson.h"
+#include "ArduinoJson.h" // ArduinoJson needs to be included before property.hpp to ensure property.hpp compiles ArduinoJson supporting functions.
 #include "property.hpp"
 #include "propertystore.hpp"
 #include "ThingGateway.hpp"
@@ -29,11 +29,15 @@ class ThingDevice
 
         /// @brief Add the set of `Property`s that should be uploaded to Thingsboard as telemetry.
         /// @param store Either a `PropertyStore` or a `TelemetryStore` object which contains the relevant `Property`s.
-        void add_telemetry_store(BaseStore& store) { telemetrystore = &store; };
+        void add_telemetry(BaseStore& store) { telemetrystore = &store; };
         
         /// @brief Add the set of `Property`s that should be uploaded to Thingsboard as attributes.
         /// @param store Either a `PropertyStore` or a `TelemetryStore` object which contains the relevant `Property`s.
-        void add_attribute_store(BaseStore& store) { attributestore = &store; };
+        void add_client_attributes(BaseStore& store) { client_attributes = &store; };
+
+        /// @brief Add the set of `Property`s of which the values should be downloaded from Thingsboard.
+        /// @param store Either a `PropertyStore` or a `TelemetryStore` object which contains the relevant `Property`s.
+        void add_shared_attributes(BaseStore& store) { shared_attributes = &store; };
         
     protected:
         
@@ -41,6 +45,9 @@ class ThingDevice
         // Add the given `Property` to the given JSON document.
         void add_to_document(JsonDocument& doc, BaseProperty* p);
         
+        // Pass the received shared attributes to the correct Property.
+        void process_attributes(JsonObject obj);
+
         // Make the `ThingGateway` a friend so it has access to the privates.
         template<size_t SIZE>
         friend class ThingGateway;
@@ -63,8 +70,11 @@ class ThingDevice
         // The set of `Property`s that constitute this device's telemetry.
         BaseStore* telemetrystore;
         
-        // The set of `Property`s that constitute this device's attributes.
-        BaseStore* attributestore;
+        // The set of `Property`s that are uploaded to Thingsboard as attributes.
+        BaseStore* client_attributes;
+
+        // The set of `Property`s whose values are downloaded from thingsboard.
+        BaseStore* shared_attributes;
 
 };
 
@@ -75,11 +85,11 @@ ThingDevice::ThingDevice(const char* name, const char* type):
 
 void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
 {
-    if(doc.isNull())
-    {
-        // Do doc initialization if necessary
-    }
-    p->save_to_doc(doc);
+    JsonObject obj;
+    if(doc.isNull())    obj = doc.to<JsonObject>();
+    else                obj = doc.as<JsonObject>();
+
+    p->save_to_json(obj);
     p->saved();
 }
 
@@ -101,12 +111,12 @@ void ThingDevice::loop()
             }
         }
         // Attribute updates
-        if(attributestore != nullptr)
+        if(client_attributes != nullptr)
         {
-            for(uint32_t i = 0; i < attributestore->size; i++)
+            for(uint32_t i = 0; i < client_attributes->size; i++)
             {
-                BaseProperty* p = attributestore->get_property(i);
-                if(p == nullptr) PRINT("[ThingDevice] ERROR: nullptr in attributestore");
+                BaseProperty* p = client_attributes->get_property(i);
+                if(p == nullptr) PRINT("[ThingDevice] ERROR: nullptr in client_attributes");
                 else if(p->is_updated())
                 {
                     add_to_document(attribute_doc, p);
@@ -115,6 +125,27 @@ void ThingDevice::loop()
         }
         // ThingGateway will detect that the attribute and/or telemetry JSON documents 
         // contain data and send them to thingsboard.
+    }
+}
+
+void ThingDevice::process_attributes(JsonObject obj)
+{
+    // Do nothing if no shared attributes are attached.
+    if(shared_attributes == nullptr) return;
+    
+    // Loop through attributes in the JSON object.
+    for(JsonPair att : obj)
+    {
+        // Loop through attributes
+        for(uint32_t i = 0; i < shared_attributes->size; i++)
+        {
+            BaseProperty* p = shared_attributes->get_property(i);
+            // Compare names.
+            if(!strcmp(p->get_name(), att.key().c_str()))
+            {
+                p->set_from_json(att.value());
+            }
+        }
     }
 }
 

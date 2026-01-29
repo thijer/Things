@@ -39,7 +39,7 @@ class ThingGateway
 
         /// @brief Indicates if the gateway is currently connected to thingsboard.
         /// @return `true` if connected, `false` otherwise.
-        bool is_connected() { return connected; }
+        bool connected() { return mqtt.connected(); }
 
         /// @brief Add a function that generates the time as a timestamp when called.
         /// @param timefunction The function that generates the timestamp. Should take no input 
@@ -61,6 +61,9 @@ class ThingGateway
         // Publish a finished JSON structure to the given MQTT topic.
         bool publish(const char* topic, JsonDocument& doc);
 
+        // Pass the received shared attributes to the correct ThingDevice.
+        void process_attribute(JsonDocument& doc);
+
         // MQTT Topics
         // PUB: Connect a device to thingsboard.
         const char* topic_connect = "v1/gateway/connect";
@@ -74,7 +77,9 @@ class ThingGateway
         // PUB: Upload telemetry to thingsboard.
         const char* topic_telemetry = "v1/gateway/telemetry";
         
-        // THe set of Thingsboard devices belonging to this gateway.
+        const uint8_t topic_prefix_length = sizeof("v1/gateway/") - 1;
+
+        // The set of Thingsboard devices belonging to this gateway.
         ThingDevice* devices[SIZE];
 
         // The JSON structures that hold the data before sending it to thingsboard. 
@@ -84,8 +89,8 @@ class ThingGateway
         // The MQTT client.
         PubSubClient mqtt;
 
-        // Connection status
-        bool connected = false;
+        // Indicates if the gateway has subscribed to the relevant topics.
+        bool subscribed = false;
 
         // Accesstoken to authenticate this gateway to Thingsboard.
         const char* accesstoken;
@@ -116,85 +121,100 @@ ThingGateway<SIZE>::~ThingGateway()
 template<size_t SIZE>
 void ThingGateway<SIZE>::begin()
 {
-    connected = mqtt.connect(devicename, accesstoken, "");
+    mqtt.connect(devicename, accesstoken, "");
 }
 
 template<size_t SIZE>
 void ThingGateway<SIZE>::loop()
 {
+    mqtt.loop();
     // reconnect if not connected.
-    if(!connected)
+    if(!mqtt.connected())
     {
-        connected = mqtt.connect(devicename, accesstoken, "");
+        mqtt.connect(devicename, accesstoken, "");
     }
-    time_t currenttime = 0;
-    if(timesource) currenttime = timesource();
-    
-    for(ThingDevice* device : devices)
+    else
     {
-        // Check if device should be connected to Thingsboard.
-        if(device->enabled && !device->connected)
+        // Get current time.
+        time_t currenttime = 0;
+        if(timesource) currenttime = timesource();
+
+        // Subscribe to topics.
+        if(!subscribed)
         {
-            PRINT("[ThingGateway]", device->name, ": connecting.");
-            connect_device(device);
+            subscribed = mqtt.subscribe(topic_attributes);;
+            PRINT("[ThingGateway]: subscribing ", subscribed ? "success." : "failed.");
         }
-        // Check if device should be disconnected from Thingsboard.
-        else if(!device->enabled && device->connected)
+
+        // Process attached ThingDevices.
+        for(ThingDevice* device : devices)
         {
-            PRINT("[ThingGateway]", device->name, ": disconnecting.");
-            disconnect_device(device);
+            // Check if device should be connected to Thingsboard.
+            if(device->enabled && !device->connected)
+            {
+                PRINT("[ThingGateway]", device->name, ": connecting.");
+                connect_device(device);
+            }
+            // Check if device should be disconnected from Thingsboard.
+            else if(!device->enabled && device->connected)
+            {
+                PRINT("[ThingGateway]", device->name, ": disconnecting.");
+                disconnect_device(device);
+            }
+            
+            else
+            {
+                // Check for attribute updates.
+                if(!device->attribute_doc.isNull())
+                {
+                    PRINT("[ThingGateway] ", device->name, ": attribute updates");
+                    // [TODO] Prepare doc if necessary.
+                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
+                    attribute_doc[device->name] = device->attribute_doc;
+                    device->attribute_doc.clear();
+                }
+                // Check for telemetry updates.
+                // The gateway can only send telemetry if a timestamp can be assigned.
+                if(!device->telemetry_doc.isNull() && timesource)
+                {
+                    PRINT("[ThingGateway] ", device->name, ": telemetry updates");
+                    // [TODO] Prepare doc if necessary.
+                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
+                    JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
+                    obj["ts"] = currenttime;
+                    obj["values"] = device->telemetry_doc;
+                    device->telemetry_doc.clear();
+                }
+            }
         }
         
-        else
+        // Send attributes and/or telemetry to Thingsboard.
+        if(!attribute_doc.isNull())
         {
-            // Check for attribute updates.
-            if(!device->attribute_doc.isNull())
+            PRINT("[ThingGateway]: publishing attributes");
+            if(publish(topic_attributes, attribute_doc))
             {
-                PRINT("[ThingGateway] ", device->name, ": attribute updates");
-                // [TODO] Prepare doc if necessary.
-                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
-                attribute_doc[device->name] = device->attribute_doc;
-                device->attribute_doc.clear();
+                // Publishing success
+                attribute_doc.clear();
             }
-            // Check for telemetry updates.
-            // The gateway can only send telemetry if a timestamp can be assigned.
-            if(!device->telemetry_doc.isNull() && timesource)
+            else
             {
-                PRINT("[ThingGateway] ", device->name, ": telemetry updates");
-                // [TODO] Prepare doc if necessary.
-                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
-                JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
-                obj["ts"] = currenttime;
-                obj["values"] = device->telemetry_doc;
-                device->telemetry_doc.clear();
+                PRINT("[ThingGateway] ERROR: publishing failed");
             }
         }
-    }
-    // Send attributes and/or telemetry to Thingsboard.
-    if(!attribute_doc.isNull())
-    {
-        PRINT("[ThingGateway]: publishing attributes");
-        if(publish(topic_attributes, attribute_doc))
+
+        if(!telemetry_doc.isNull())
         {
-            // Publishing success
-            attribute_doc.clear();
-        }
-        else
-        {
-            PRINT("[ThingGateway] ERROR: publishing failed");
-        }
-    }
-    if(!telemetry_doc.isNull())
-    {
-        PRINT("[ThingGateway]: publishing telemetry");
-        if(publish(topic_telemetry, telemetry_doc))
-        {
-            // Publishing success
-            telemetry_doc.clear();
-        }
-        else
-        {
-            PRINT("[ThingGateway] ERROR: publishing failed");
+            PRINT("[ThingGateway]: publishing telemetry");
+            if(publish(topic_telemetry, telemetry_doc))
+            {
+                // Publishing success
+                telemetry_doc.clear();
+            }
+            else
+            {
+                PRINT("[ThingGateway] ERROR: publishing failed");
+            }
         }
     }
 }
@@ -217,7 +237,16 @@ void ThingGateway<SIZE>::add_timesource(std::function<time_t()> timefunction)
 template<size_t SIZE>
 void ThingGateway<SIZE>::callback(char* topic, uint8_t* payload, unsigned int length)
 {
-
+    PRINT("[ThingGateway] received message on ", topic, ":");
+    PRINT(payload, length);
+    // Attribute updates
+    if(!strncmp(topic + topic_prefix_length, "attributes", 10))
+    {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, payload, length);
+        if(err) PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str());
+        else process_attribute(doc);
+    }
 }
 
 template<size_t SIZE>
@@ -250,6 +279,25 @@ bool ThingGateway<SIZE>::publish(const char* topic, JsonDocument& doc)
     mqtt.beginPublish(topic, length, false);
     size_t written = serializeJson(doc, mqtt);
     return mqtt.endPublish();
+}
+
+template<size_t SIZE>
+void ThingGateway<SIZE>::process_attribute(JsonDocument& doc)
+{
+    const char* devicename = doc["device"];
+    if(devicename == nullptr || !doc["data"].is<JsonObject>())
+    {
+        PRINT("[ThingGateway] JSON format is wrong.");
+        return;
+    }
+    for(ThingDevice* device : devices)
+    {
+        if(!strcmp(devicename, device->name))
+        {
+            JsonObject obj = doc["data"];
+            device->process_attributes(obj);
+        }
+    }
 }
 
 
