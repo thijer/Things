@@ -244,7 +244,7 @@ void ThingGateway<SIZE>::callback(char* topic, uint8_t* payload, unsigned int le
     {
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload, length);
-        if(err) PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str());
+        if(err) { PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str()); }
         else process_attribute(doc);
     }
 }

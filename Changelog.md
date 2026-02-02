@@ -1,4 +1,8 @@
 # Changelog
+## [1.1.1] - 2-2-2026
+### Fixed
+- if/else compilation error when `THING_DEBUG` is not defined.
+
 ## [1.1.0] - 29-1-2026
 ### Added
 - Added support for shared attributes, which are updated on Thingsboard and then downloaded to the device.
