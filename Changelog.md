@@ -1,4 +1,14 @@
 # Changelog
+## [1.2.0] - 2-2-2026
+### Added
+- `ThingGateway` can now through its own device representation in Thingsboard enable or disable connected devices using shared bool attributes.
+
+### Changed
+- `ThingDevice` now uses a `BooleanProperty` to store its desired enable/disable state.
+
+### Fixed
+- local variable `devicename` in `ThingGateway::process_attribute` renamed to `name` to prevent potential conflict with `ThingGateway::devicename`.
+
 ## [1.1.1] - 2-2-2026
 ### Fixed
 - if/else compilation error when `THING_DEBUG` is not defined.
