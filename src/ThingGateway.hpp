@@ -316,15 +316,15 @@ bool ThingGateway<SIZE>::publish(const char* topic, JsonDocument& doc)
 template<size_t SIZE>
 void ThingGateway<SIZE>::process_attribute(JsonDocument& doc)
 {
-    const char* devicename = doc["device"];
-    if(devicename == nullptr || !doc["data"].is<JsonObject>())
+    const char* name = doc["device"];
+    if(name == nullptr || !doc["data"].is<JsonObject>())
     {
         PRINT("[ThingGateway] JSON format is wrong.");
         return;
     }
     for(ThingDevice* device : devices)
     {
-        if(!strcmp(devicename, device->name))
+        if(!strcmp(name, device->name))
         {
             JsonObject obj = doc["data"];
             device->process_attributes(obj);
