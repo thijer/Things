@@ -53,7 +53,7 @@ class ThingDevice
         friend class ThingGateway;
 
         // Desired connection status. if `true`, it will be connected to Thingsboard.
-        bool enabled = true;
+        BooleanProperty enabled;
 
         // Actual connection status. 
         bool connected = false;
@@ -80,7 +80,8 @@ class ThingDevice
 
 ThingDevice::ThingDevice(const char* name, const char* type):
     name(name), 
-    type(type)
+    type(type),
+    enabled(name, true)
 {}
 
 void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
@@ -95,7 +96,7 @@ void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
 
 void ThingDevice::loop()
 {
-    if(enabled)
+    if(enabled.get())
     {
         // Telemetry updates
         if(telemetrystore != nullptr)

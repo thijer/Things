@@ -6,6 +6,8 @@
 #include "Client.h"
 #include "ArduinoJson.h"
 #include "PubSubClient.h"
+#include "property.hpp"
+#include "propertystore.hpp"
 #include "ThingDevice.hpp"
 #include "utility.h"
 
@@ -13,7 +15,7 @@
 /// @brief 
 /// @tparam SIZE The number of separate Thingsboard devices that connect to THingsboard through this gateway.
 template<size_t SIZE>
-class ThingGateway
+class ThingGateway: private ThingDevice
 {
     public:
         /// @brief Setup a Thingsboard Gateway that manages a set of devices.
@@ -74,6 +76,9 @@ class ThingGateway
         // PUB: Upload attributes to thingsboard. SUB: download attribute updates from thingsboard
         const char* topic_attributes = "v1/gateway/attributes";
 
+        // SUB: download attributes related to the gateway device itself from Thingsboard.
+        const char* topic_device_attributes = "v1/devices/me/attributes";
+
         // PUB: Upload telemetry to thingsboard.
         const char* topic_telemetry = "v1/gateway/telemetry";
         
@@ -81,6 +86,9 @@ class ThingGateway
 
         // The set of Thingsboard devices belonging to this gateway.
         ThingDevice* devices[SIZE];
+
+        // All BooleanProperties indicating the desired state of all connected devices are gathered here.
+        TelemetryStore<SIZE> device_enabled;
 
         // The JSON structures that hold the data before sending it to thingsboard. 
         JsonDocument attribute_doc;
@@ -104,6 +112,7 @@ class ThingGateway
 
 template<size_t SIZE>
 ThingGateway<SIZE>::ThingGateway(Client& client, const char* server, const char* accesstoken, const char* devicename):
+    ThingDevice(devicename, "Gateway"),
     mqtt(server, 1883, client),
     accesstoken(accesstoken),
     devicename(devicename)
@@ -121,12 +130,19 @@ ThingGateway<SIZE>::~ThingGateway()
 template<size_t SIZE>
 void ThingGateway<SIZE>::begin()
 {
+    // Add device enable properties to Gateway device.
+    // `add_devices()` should be called before this function.
+    ThingDevice::add_shared_attributes(device_enabled);
+    ThingDevice::begin();
+
     mqtt.connect(devicename, accesstoken, "");
 }
 
 template<size_t SIZE>
 void ThingGateway<SIZE>::loop()
 {
+    ThingDevice::loop();
+
     mqtt.loop();
     // reconnect if not connected.
     if(!mqtt.connected())
@@ -142,7 +158,8 @@ void ThingGateway<SIZE>::loop()
         // Subscribe to topics.
         if(!subscribed)
         {
-            subscribed = mqtt.subscribe(topic_attributes);;
+            subscribed =    mqtt.subscribe(topic_attributes) &&
+                            mqtt.subscribe(topic_device_attributes);
             PRINT("[ThingGateway]: subscribing ", subscribed ? "success." : "failed.");
         }
 
@@ -150,13 +167,13 @@ void ThingGateway<SIZE>::loop()
         for(ThingDevice* device : devices)
         {
             // Check if device should be connected to Thingsboard.
-            if(device->enabled && !device->connected)
+            if(device->enabled.get() && !device->connected)
             {
                 PRINT("[ThingGateway]", device->name, ": connecting.");
                 connect_device(device);
             }
             // Check if device should be disconnected from Thingsboard.
-            else if(!device->enabled && device->connected)
+            else if(!device->enabled.get() && device->connected)
             {
                 PRINT("[ThingGateway]", device->name, ": disconnecting.");
                 disconnect_device(device);
@@ -222,10 +239,16 @@ void ThingGateway<SIZE>::loop()
 template<size_t SIZE>
 void ThingGateway<SIZE>::add_devices(ThingDevice* const (&device)[SIZE])
 {
+    // Create an array of BooleanProperty pointers for each device connected to the gateway.
+    BaseProperty* arr[SIZE];
     for(uint32_t i = 0; i < SIZE; i++)
     {
         devices[i] = device[i];
+        // Add the device's enable property to the array.
+        arr[i] = &device[i]->enabled;
     }
+    // Assign the enable properties to the gateway device's propertystore
+    device_enabled.assign_properties(arr);
 }
 
 template<size_t SIZE>
@@ -240,12 +263,21 @@ void ThingGateway<SIZE>::callback(char* topic, uint8_t* payload, unsigned int le
     PRINT("[ThingGateway] received message on ", topic, ":");
     PRINT(payload, length);
     // Attribute updates
-    if(!strncmp(topic + topic_prefix_length, "attributes", 10))
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload, length);
+    if(err) { PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str()); }
+    else
     {
-        JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, payload, length);
-        if(err) { PRINT("[ThingGateway] ERROR: Deserialization ", err.c_str()); }
-        else process_attribute(doc);
+        // Attributes belonging to a connected device.
+        if(strncmp(topic, topic_attributes, strlen(topic_attributes)) == 0)
+        {
+            process_attribute(doc);
+        }
+        // Attributes belonging to the gateway device.
+        else if(strncmp(topic, topic_device_attributes, strlen(topic_device_attributes)) == 0)
+        {
+            ThingDevice::process_attributes(doc.as<JsonObject>());
+        }
     }
 }
 
