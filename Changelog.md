@@ -1,4 +1,9 @@
 # Changelog
+## [1.3.0] - 3-2-2026
+### Added
+- `ThingDevice`s can now be provided with a default enable state in the constructor.
+- `ThingDevice`'s internal enable property is now only protected so derived classes can have access to it as well.
+
 ## [1.2.0] - 2-2-2026
 ### Added
 - `ThingGateway` can now through its own device representation in Thingsboard enable or disable connected devices using shared bool attributes.

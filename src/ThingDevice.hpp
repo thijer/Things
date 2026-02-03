@@ -16,7 +16,8 @@ class ThingDevice
         /// @brief Setup a device.
         /// @param name The name of this device. This device will appear in Thingsboard under this name. 
         /// @param type The device type. This can correspond to a device profile in Thingsboard.
-        ThingDevice(const char* name, const char* type = nullptr);
+        /// @param enabled Initial state of the device, false means deactivated.
+        ThingDevice(const char* name, const char* type = nullptr, bool enabled = true);
 
         ~ThingDevice(){}
 
@@ -40,7 +41,9 @@ class ThingDevice
         void add_shared_attributes(BaseStore& store) { shared_attributes = &store; };
         
     protected:
-        
+        // Desired connection status. if `true`, it will be connected to Thingsboard.
+        BooleanProperty enabled;
+
     private:
         // Add the given `Property` to the given JSON document.
         void add_to_document(JsonDocument& doc, BaseProperty* p);
@@ -51,9 +54,6 @@ class ThingDevice
         // Make the `ThingGateway` a friend so it has access to the privates.
         template<size_t SIZE>
         friend class ThingGateway;
-
-        // Desired connection status. if `true`, it will be connected to Thingsboard.
-        BooleanProperty enabled;
 
         // Actual connection status. 
         bool connected = false;
@@ -78,10 +78,10 @@ class ThingDevice
 
 };
 
-ThingDevice::ThingDevice(const char* name, const char* type):
+ThingDevice::ThingDevice(const char* name, const char* type, bool enabled):
     name(name), 
     type(type),
-    enabled(name, true)
+    enabled(name, enabled)
 {}
 
 void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
