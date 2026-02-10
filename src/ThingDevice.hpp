@@ -1,12 +1,10 @@
-#ifndef THINGDEVICE_H
-#define THINGDEVICE_H
+#ifndef THINGDEVICE_HPP
+#define THINGDEVICE_HPP
 #include "ArduinoJson.h" // ArduinoJson needs to be included before property.hpp to ensure property.hpp compiles ArduinoJson supporting functions.
 #include "property.hpp"
 #include "propertystore.hpp"
-#include "ThingGateway.hpp"
 #include "utility.h"
 
-template<size_t SIZE> class ThingGateway;
 
 /// @brief A device that can interact with Thingsboard. This device can be added to a 
 /// `ThingGateway` that facilitates the communication with Thingsboard.
@@ -44,7 +42,6 @@ class ThingDevice
         // Desired connection status. if `true`, it will be connected to Thingsboard.
         BooleanProperty enabled;
 
-    private:
         // Add the given `Property` to the given JSON document.
         void add_to_document(JsonDocument& doc, BaseProperty* p);
         
