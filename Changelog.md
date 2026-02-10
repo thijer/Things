@@ -1,4 +1,9 @@
 # Changelog
+## [1.4.0] - 10-2-2026
+### Added
+- `ThingMQTT`, a specialization of `ThingDevice` that uses Thingsboard MQTT API to upload telemetry and client attributes and download shared attributes.
+- `mqtt.ino`, an example using `ThingMQTT`.
+
 ## [1.3.1] - 10-2-2026
 ### Changed
 - Support for Properties v3
