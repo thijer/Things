@@ -98,9 +98,8 @@ void ThingDevice::loop()
         // Telemetry updates
         if(telemetrystore != nullptr)
         {
-            for(uint32_t i = 0; i < telemetrystore->size; i++)
+            for(BaseProperty* p : *telemetrystore)
             {
-                BaseProperty* p = telemetrystore->get_property(i);
                 if(p == nullptr) { PRINT("[ThingDevice] ERROR: nullptr in telemetrystore"); }
                 else if(p->is_updated())
                 {
@@ -111,9 +110,8 @@ void ThingDevice::loop()
         // Attribute updates
         if(client_attributes != nullptr)
         {
-            for(uint32_t i = 0; i < client_attributes->size; i++)
+            for(BaseProperty* p : *client_attributes)
             {
-                BaseProperty* p = client_attributes->get_property(i);
                 if(p == nullptr) { PRINT("[ThingDevice] ERROR: nullptr in client_attributes"); }
                 else if(p->is_updated())
                 {
