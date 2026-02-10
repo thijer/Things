@@ -1,4 +1,8 @@
 # Changelog
+## [1.3.1] - 10-2-2026
+### Changed
+- Support for Properties v3
+
 ## [1.3.0] - 3-2-2026
 ### Added
 - `ThingDevice`s can now be provided with a default enable state in the constructor.
