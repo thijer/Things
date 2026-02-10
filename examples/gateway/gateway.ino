@@ -16,6 +16,7 @@ This example is for use on the ESP32.
 #include "ThingGateway.hpp"
 #include "property.hpp"         // Needs to be included after ThingGateway.hpp to ensure arduinojson support compiles.
 #include "propertystore.hpp"
+#include "PropertyTextInterface.hpp"
 
 // Contains Wifi and thingsboard parameters.
 #include "secrets.h"
@@ -29,21 +30,23 @@ ThingGateway<2> gateway(cl, tb_address, tb_accesstoken);
 IntegerProperty prop00("prop0");
 RealProperty prop01("prop1");
 // Set up a propertystore that manages the properties belonging to device0.
-TelemetryStore<2> dev0_cl_attributes({&prop00, &prop01});
+PropertyStore<2> dev0_cl_attributes({&prop00, &prop01});
 
 // Set up shared attribute properties.
 IntegerProperty prop02("prop2");
-TelemetryStore<1> dev0_sh_attributes({&prop02});
+PropertyStore<1> dev0_sh_attributes({&prop02});
+PropertyTextInterface dev0_interface(dev0_sh_attributes);
 // Create a Thingsboard device with a name and optionally a type identifier.
 ThingDevice device0("device0", "test-device");
 
 // Repeat for device1
 IntegerProperty prop10("prop0");
 RealProperty prop11("prop1");
-TelemetryStore<2> dev1_cl_attributes({&prop10, &prop11});
+PropertyStore<2> dev1_cl_attributes({&prop10, &prop11});
 
 IntegerProperty prop12("prop2");
-TelemetryStore<1> dev1_sh_attributes({&prop12});
+PropertyStore<1> dev1_sh_attributes({&prop12});
+PropertyTextInterface dev1_interface(dev1_sh_attributes);
 
 ThingDevice device1("device1", "test-device");
 
@@ -63,10 +66,10 @@ void parse_command(String& message)
     if(message == "print")
     {
         Serial.println("device0 properties");
-        dev0_sh_attributes.print_to(Serial);
+        dev0_interface.print_to(Serial);
 
         Serial.println("device1 properties");
-        dev1_sh_attributes.print_to(Serial);   
+        dev1_interface.print_to(Serial);   
     }    
 }
 

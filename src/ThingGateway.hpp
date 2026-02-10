@@ -88,7 +88,7 @@ class ThingGateway: private ThingDevice
         ThingDevice* devices[SIZE];
 
         // All BooleanProperties indicating the desired state of all connected devices are gathered here.
-        TelemetryStore<SIZE> device_enabled;
+        PropertyStore<SIZE> device_enabled;
 
         // The JSON structures that hold the data before sending it to thingsboard. 
         JsonDocument attribute_doc;
