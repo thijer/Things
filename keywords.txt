@@ -1,0 +1,4 @@
+# Structures
+ThingGateway KEYWORD3
+ThingDevice KEYWORD3
+ThingMQTT KEYWORD3
