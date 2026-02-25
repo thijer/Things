@@ -27,6 +27,12 @@ class ThingGateway: private ThingDevice
         
         ~ThingGateway();
 
+        /// @brief Enable the gateway and connect to Thingsboard
+        void enable()  { enabled.set(true); }
+
+        /// @brief Disconnect from Thingsboard.
+        void disable() { enabled.set(false); }
+
         /// @brief Initializes the gateway
         void begin();
         
@@ -135,7 +141,7 @@ void ThingGateway<SIZE>::begin()
     ThingDevice::add_shared_attributes(device_enabled);
     ThingDevice::begin();
 
-    mqtt.connect(devicename, accesstoken, "");
+    // mqtt.connect(devicename, accesstoken, "");
 }
 
 template<size_t SIZE>
@@ -144,10 +150,18 @@ void ThingGateway<SIZE>::loop()
     ThingDevice::loop();
 
     mqtt.loop();
+    
+    if(!enabled.get())
+    {
+        if(mqtt.connected()) mqtt.disconnect();
+        return;
+    }
+    
     // reconnect if not connected.
     if(!mqtt.connected())
     {
         mqtt.connect(devicename, accesstoken, "");
+        subscribed = false;
     }
     else
     {

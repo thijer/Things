@@ -1,4 +1,8 @@
 # Changelog
+## [1.5.0] - 25-2-2026
+### Added
+- Gateway can now be (dis)connected through `enable()` and `disable()`.
+
 ## [1.4.0] - 10-2-2026
 ### Added
 - `ThingMQTT`, a specialization of `ThingDevice` that uses Thingsboard MQTT API to upload telemetry and client attributes and download shared attributes.
