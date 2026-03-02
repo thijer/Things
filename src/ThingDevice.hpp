@@ -20,11 +20,11 @@ class ThingDevice
         ~ThingDevice(){}
 
         /// @brief Initializes the ThingDevice
-        void begin() {};
+        virtual void begin() {};
 
         /// @brief Runs the main functionality of the device. This function should run in the main loop with 
         /// little or no blocking code in between. 
-        void loop();
+        virtual void loop();
 
         /// @brief Add the set of `Property`s that should be uploaded to Thingsboard as telemetry.
         /// @param store Either a `PropertyStore` or a `TelemetryStore` object which contains the relevant `Property`s.
@@ -46,7 +46,7 @@ class ThingDevice
         void add_to_document(JsonDocument& doc, BaseProperty* p);
         
         // Pass the received shared attributes to the correct Property.
-        void process_attributes(JsonObject obj);
+        virtual void process_attributes(JsonObject obj);
 
         // Make the `ThingGateway` a friend so it has access to the privates.
         template<size_t SIZE>
