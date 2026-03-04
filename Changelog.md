@@ -1,4 +1,8 @@
 # Changelog
+## [1.6.0] - 4-3-2026
+### Changed
+- The methods `begin()`, `loop()`, and `process_attributes` are now virtual.
+
 ## [1.5.0] - 25-2-2026
 ### Added
 - Gateway can now be (dis)connected through `enable()` and `disable()`.
