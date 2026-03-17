@@ -72,8 +72,10 @@ class ThingGateway: private ThingDevice
         // Pass the received shared attributes to the correct ThingDevice.
         void process_attribute(JsonObject doc);
 
+        // Create and publish an atttribute request for all the shared attributes of the device.
         void request_attributes(ThingDevice* device);
 
+        // Process the response to the attribute request.
         void process_attribute_response(JsonObject doc);
 
         // MQTT Topics
@@ -116,9 +118,16 @@ class ThingGateway: private ThingDevice
         // Indicates if the gateway has subscribed to the relevant topics.
         bool subscribed = false;
 
+        // Attribute request ID.
         uint8_t request_id = 0;
+        
+        // If an attribute request has been sent but no response has yet arrived.
         bool request_active = false;
+        
+        // If only a single attribute is requested, a pointer to the attribute name needs to be stored because 
+        // the name will not be mentioned in the response.
         const char* request_single_key = nullptr;
+
         // Accesstoken to authenticate this gateway to Thingsboard.
         const char* accesstoken;
         
@@ -173,7 +182,7 @@ void ThingGateway<SIZE>::loop()
     // reconnect if not connected.
     if(!mqtt.connected())
     {
-        PRINT("[ThingGateway]: connecting.");
+        PRINT("[ThingGateway] connecting");
         mqtt.connect(devicename, accesstoken, "");
         subscribed = false;
     }
@@ -189,7 +198,7 @@ void ThingGateway<SIZE>::loop()
             subscribed = mqtt.subscribe(topic_attributes) &&
                          mqtt.subscribe(topic_device_attributes) &&
                          mqtt.subscribe(topic_attributes_response);
-            PRINT("[ThingGateway]: subscribing ", subscribed ? "success." : "failed.");
+            PRINT("[ThingGateway] subscribing ", subscribed ? "success" : "failed");
         }
 
         // Process attached ThingDevices.
@@ -198,14 +207,14 @@ void ThingGateway<SIZE>::loop()
             // Check if device should be connected to Thingsboard.
             if(device->enabled.get() && !device->connected)
             {
-                PRINT("[ThingGateway] ", device->name, ": connecting.");
+                PRINT("[ThingGateway] ", device->name, ": connecting");
                 connect_device(device);
             }
 
             // Check if device should be disconnected from Thingsboard.
             else if(!device->enabled.get() && device->connected)
             {
-                PRINT("[ThingGateway]", device->name, ": disconnecting.");
+                PRINT("[ThingGateway] ", device->name, ": disconnecting");
                 disconnect_device(device);
             }
             
@@ -221,7 +230,7 @@ void ThingGateway<SIZE>::loop()
                 // Check for attribute updates.
                 if(!device->attribute_doc.isNull())
                 {
-                    PRINT("[ThingGateway] ", device->name, ": attribute updates");
+                    PRINT("[ThingGateway] ", device->name, ": attribute update");
                     // [TODO] Prepare doc if necessary.
                     // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
                     attribute_doc[device->name] = device->attribute_doc;
@@ -245,7 +254,7 @@ void ThingGateway<SIZE>::loop()
         // Send attributes and/or telemetry to Thingsboard.
         if(!attribute_doc.isNull())
         {
-            PRINT("[ThingGateway]: publishing attributes");
+            PRINT("[ThingGateway] publishing attributes");
             if(publish(topic_attributes, attribute_doc))
             {
                 // Publishing success
@@ -259,7 +268,7 @@ void ThingGateway<SIZE>::loop()
 
         if(!telemetry_doc.isNull())
         {
-            PRINT("[ThingGateway]: publishing telemetry");
+            PRINT("[ThingGateway] publishing telemetry");
             if(publish(topic_telemetry, telemetry_doc))
             {
                 // Publishing success
@@ -343,7 +352,7 @@ void ThingGateway<SIZE>::disconnect_device(ThingDevice* device)
 template<size_t SIZE>
 bool ThingGateway<SIZE>::publish(const char* topic, JsonDocument& doc)
 {
-    PRINT("[ThingGateway]: publishing to ", topic);
+    PRINT("[ThingGateway] publishing to ", topic);
     #ifdef THING_DEBUG
     serializeJson(doc, THING_DEBUG); 
     PRINT();
@@ -363,7 +372,7 @@ void ThingGateway<SIZE>::process_attribute(JsonObject doc)
     const char* name = doc["device"];
     if(name == nullptr || !doc["data"].is<JsonObject>())
     {
-        PRINT("[ThingGateway] JSON format is wrong.");
+        PRINT("[ThingGateway] ERROR: JSON format is wrong");
         return;
     }
     for(ThingDevice* device : devices)
