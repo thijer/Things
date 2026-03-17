@@ -388,6 +388,11 @@ void ThingGateway<SIZE>::process_attribute(JsonObject doc)
 template <size_t SIZE>
 void ThingGateway<SIZE>::request_attributes(ThingDevice *device)
 {
+    if(device->shared_attributes == nullptr)
+    {
+        PRINT("[ThingGateway] No shared attributes to request");
+        return;
+    }
     JsonDocument request;
     request["device"] = device->name;
     request_id = 0;
