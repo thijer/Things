@@ -198,7 +198,7 @@ void ThingGateway<SIZE>::loop()
             // Check if device should be connected to Thingsboard.
             if(device->enabled.get() && !device->connected)
             {
-                PRINT("[ThingGateway]", device->name, ": connecting.");
+                PRINT("[ThingGateway] ", device->name, ": connecting.");
                 connect_device(device);
             }
 
@@ -210,9 +210,9 @@ void ThingGateway<SIZE>::loop()
             }
             
             // Check if device wants its attributes downloaded aand if there is no other request being processed.
-            else if(device->download_attributes && !request_active)
+            else if(device->connected && device->download_attributes && !request_active && device->shared_attributes)
             {
-                PRINT("[ThingGateway]", device->name, ": requesting attributes");
+                PRINT("[ThingGateway] ", device->name, ": requesting attributes");
                 request_attributes(device);
             }
             
