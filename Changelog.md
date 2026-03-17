@@ -1,4 +1,13 @@
 # Changelog
+## [1.7.0] - 17-3-2026
+### Added
+- `ThingDevice`s can now indicate if they want their shared attributes downloaded from Thingsboard at startup.
+- `ThingGateway` can now request attributes for `ThingDevice`s and process the response.
+
+### Changed
+- Debug output is now slightly more consistent in format.
+- Get `ThingGateway::publish` success from `PubSubClient::beginPublish` because `PubSubClient::endPublish` always returns 1.
+
 ## [1.6.0] - 4-3-2026
 ### Changed
 - The methods `begin()`, `loop()`, and `process_attributes` are now virtual.

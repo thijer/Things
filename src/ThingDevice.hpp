@@ -15,7 +15,7 @@ class ThingDevice
         /// @param name The name of this device. This device will appear in Thingsboard under this name. 
         /// @param type The device type. This can correspond to a device profile in Thingsboard.
         /// @param enabled Initial state of the device, false means deactivated.
-        ThingDevice(const char* name, const char* type = nullptr, bool enabled = true);
+        ThingDevice(const char* name, const char* type = nullptr, bool enabled = true, bool download_attributes = true);
 
         ~ThingDevice(){}
 
@@ -54,6 +54,8 @@ class ThingDevice
 
         // Actual connection status. 
         bool connected = false;
+
+        bool download_attributes;
         
         // Device name.
         const char* name;
@@ -75,10 +77,11 @@ class ThingDevice
 
 };
 
-ThingDevice::ThingDevice(const char* name, const char* type, bool enabled):
+ThingDevice::ThingDevice(const char* name, const char* type, bool enabled, bool download_attributes):
     name(name), 
     type(type),
-    enabled(name, enabled)
+    enabled(name, enabled),
+    download_attributes(download_attributes)
 {}
 
 void ThingDevice::add_to_document(JsonDocument& doc, BaseProperty* p)
@@ -126,6 +129,9 @@ void ThingDevice::loop()
 
 void ThingDevice::process_attributes(JsonObject obj)
 {
+    // Disable download request flag on reception of attributes.
+    download_attributes = false;
+    
     // Do nothing if no shared attributes are attached.
     if(shared_attributes == nullptr) return;
     
