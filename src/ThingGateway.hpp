@@ -188,10 +188,6 @@ void ThingGateway<SIZE>::loop()
     }
     else
     {
-        // Get current time.
-        time_t currenttime = 0;
-        if(timesource) currenttime = timesource();
-
         // Subscribe to topics.
         if(!subscribed)
         {
@@ -199,9 +195,10 @@ void ThingGateway<SIZE>::loop()
                          mqtt.subscribe(topic_device_attributes) &&
                          mqtt.subscribe(topic_attributes_response);
             PRINT("[ThingGateway] subscribing ", subscribed ? "success" : "failed");
+            return;
         }
 
-        // Process attached ThingDevices.
+        // First manage device connections
         for(ThingDevice* device : devices)
         {
             // Check if device should be connected to Thingsboard.
@@ -209,6 +206,7 @@ void ThingGateway<SIZE>::loop()
             {
                 PRINT("[ThingGateway] ", device->name, ": connecting");
                 connect_device(device);
+                return;
             }
 
             // Check if device should be disconnected from Thingsboard.
@@ -216,6 +214,7 @@ void ThingGateway<SIZE>::loop()
             {
                 PRINT("[ThingGateway] ", device->name, ": disconnecting");
                 disconnect_device(device);
+                return;
             }
             
             // Check if device wants its attributes downloaded aand if there is no other request being processed.
@@ -223,31 +222,37 @@ void ThingGateway<SIZE>::loop()
             {
                 PRINT("[ThingGateway] ", device->name, ": requesting attributes");
                 request_attributes(device);
+                return;
             }
-            
-            else
+        }
+        
+        // Get current time.
+        time_t currenttime = 0;
+        if(timesource) currenttime = timesource();
+
+        // Then process attributes and telemetry
+        for(ThingDevice* device : devices)
+        {
+            // Check for attribute updates.
+            if(!device->attribute_doc.isNull())
             {
-                // Check for attribute updates.
-                if(!device->attribute_doc.isNull())
-                {
-                    PRINT("[ThingGateway] ", device->name, ": attribute update");
-                    // [TODO] Prepare doc if necessary.
-                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
-                    attribute_doc[device->name] = device->attribute_doc;
-                    device->attribute_doc.clear();
-                }
-                // Check for telemetry updates.
-                // The gateway can only send telemetry if a timestamp can be assigned.
-                if(!device->telemetry_doc.isNull() && timesource)
-                {
-                    PRINT("[ThingGateway] ", device->name, ": telemetry updates");
-                    // [TODO] Prepare doc if necessary.
-                    // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
-                    JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
-                    obj["ts"] = currenttime;
-                    obj["values"] = device->telemetry_doc;
-                    device->telemetry_doc.clear();
-                }
+                PRINT("[ThingGateway] ", device->name, ": attribute update");
+                // [TODO] Prepare doc if necessary.
+                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#publish-attribute-to-the-thingsboard-platform
+                attribute_doc[device->name] = device->attribute_doc;
+                device->attribute_doc.clear();
+            }
+            // Check for telemetry updates.
+            // The gateway can only send telemetry if a timestamp can be assigned.
+            if(!device->telemetry_doc.isNull() && timesource)
+            {
+                PRINT("[ThingGateway] ", device->name, ": telemetry updates");
+                // [TODO] Prepare doc if necessary.
+                // Create JSON structure as defined in https://thingsboard.io/docs/reference/gateway-mqtt-api/#telemetry-upload-api
+                JsonObject obj = telemetry_doc[device->name].add<JsonObject>();
+                obj["ts"] = currenttime;
+                obj["values"] = device->telemetry_doc;
+                device->telemetry_doc.clear();
             }
         }
         
