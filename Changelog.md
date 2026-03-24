@@ -1,4 +1,8 @@
 # Changelog
+## [1.7.2] - 24-3-2026
+### Fixed
+- Infinite attribute request when the device in Thingsboard does not have any shared attributes to return.
+
 ## [1.7.1] - 24-3-2026
 ### Fixed
 - `ThingGateway` now only does one specific action in `loop`, reducing blocking execution of other loops.
