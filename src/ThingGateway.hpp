@@ -434,7 +434,7 @@ void ThingGateway<SIZE>::process_attribute_response(JsonObject doc)
         doc.remove("value");
     }
     // Response contains no data at all.
-    else if(!doc["data"].is<JsonObject>())
+    else if(!doc["values"].is<JsonObject>())
     {
         // Data entry is missing, so the requested attributes do not exist at Thingsboard.
         // Create an empty data object.
