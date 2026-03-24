@@ -1,4 +1,8 @@
 # Changelog
+## [1.7.1] - 24-3-2026
+### Fixed
+- `ThingGateway` now only does one specific action in `loop`, reducing blocking execution of other loops.
+
 ## [1.7.0] - 17-3-2026
 ### Added
 - `ThingDevice`s can now indicate if they want their shared attributes downloaded from Thingsboard at startup.
