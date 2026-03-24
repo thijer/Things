@@ -433,6 +433,14 @@ void ThingGateway<SIZE>::process_attribute_response(JsonObject doc)
         obj[request_single_key] = doc["value"];
         doc.remove("value");
     }
+    // Response contains no data at all.
+    else if(!doc["data"].is<JsonObject>())
+    {
+        // Data entry is missing, so the requested attributes do not exist at Thingsboard.
+        // Create an empty data object.
+        PRINT("[ThingGateway] Processing zero-value attribute response");
+        doc["data"].to<JsonObject>();
+    }
     else
     {
         PRINT("[ThingGateway] Processing multi-value attribute response");
